@@ -23,7 +23,14 @@ or as part of a scheduled Lambda function, or by AWS Config.
 |SEND_REPORT_TO_SNS | false | If should send report to SNS |
 |SNS_TOPIC_ARN | None | SNS topic ARN to send report to |
 |ONLY_SHOW_FAILED | false | Only show failed compliance checks |
-|S3_BUCKETS_TO_SKIP| None | CSV of S3 buckets to skip compliance checks |
+|S3_BUCKETS_TO_SKIP | None | CSV of S3 buckets to skip compliance checks |
+|VULS_REPORT_BUCKET | pay-govuk-dev-vuls | S3 bucket to find Vuls reports |
+|VULS_HIGH_THRESHOLD | 7 | Vuls High score threshold |
+|VULS_MEDIUM_THRESHOLD | 4.5 | Vuls Medium score threshold |
+|VULS_LOW_THRESHOLD | 0 | Vuls Low score threshold |
+|VULS_UNKNOWN_THRESHOLD | -1 | Vuls Unknown score threshold |
+|VULS_IGNORE_UNSCORED_CVE | True | Vuls report should ignore unscored CVEs? |
+|VULS_MIN_ALERT_SEVERITY | 'medium' | Vuls only reports on this severity or higher
 
 ## Interpreting the compliance report
 
@@ -77,6 +84,41 @@ python aws_compliance.py
             "pay-test-foo-bar-badger-bucket"
         ],
         "ControlId": "s3_logging_enabled"
+    },
+    {
+        "Description": "Vuls reports",
+        "ScoredControl": false,
+        "failReason": {
+            "CVE-2017-7484": {
+                "instances": [
+                    "badger-12-egress-proxy-i-111111111111",
+                    "foo-12-egress-proxy-i-999999999999"
+                ],
+                "score": 5,
+                "severity": "high"
+            },
+            "CVE-2017-7485": {
+                "instances": [
+                    "badger-12-egress-proxy-i-111111111111",
+                    "foo-12-egress-proxy-i-999999999999"
+                ],
+                "score": 4.3,
+                "severity": "high"
+            },
+            "CVE-2017-7486": {
+                "instances": [
+                    "badger-12-egress-proxy-i-111111111111",
+                    "foo-12-egress-proxy-i-999999999999"
+                ],
+                "score": 5,
+                "severity": "high"
+            }
+        },
+        "Result": false,
+        "Offenders": [
+            "dev-josh-23"
+        ],
+        "ControlId": "vuls_reports"
     }
 ]
 ```
@@ -90,4 +132,5 @@ be a human understandable `failReason` in the report, followed by the
 
 In the above example, the S3 bucket pay-test-foo-bar-bucket does not
 have versioning enabled and the S3 buckets pay-test-foo-bar-bucket +
-pay-test-foo-bar-badger-bucket do not have logging enabled.
+pay-test-foo-bar-badger-bucket do not have logging enabled. There are
+also a number of CVEs in the test-12 environment
