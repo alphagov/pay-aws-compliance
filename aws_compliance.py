@@ -181,7 +181,7 @@ def gen_cve_summary(summary,cve,servername):
    if not summary[cve_id].get('score'):
        summary[cve_id]['score'] = cve_score(cve)
    if not summary[cve_id].get('severity'):
-       summary[cve_id]['severity'] = cve_severity(cve)
+       summary[cve_id]['severity'] = cve_severity(summary[cve_id]['score'])
    summary[cve_id]['instances'] = summary[cve_id].get('instances') or []
    summary[cve_id]['instances'].append(servername)
 
