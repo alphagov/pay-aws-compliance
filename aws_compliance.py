@@ -148,7 +148,7 @@ def vuls_reports():
                           for unknown_cve in unknown_cves:
                               gen_cve_summary(cve_summary,unknown_cve,report_body['ServerName'])
             final = final_cve_summary(cve_summary)
-            if len(final) >= 0:
+            if len(final) > 0:
                 result = False
                 failReason = final
     else:
