@@ -103,7 +103,7 @@ def reboots_required():
     failReason = ""
     offenders = []
     control = "reboots_required"
-    description = "Instances requiring a reboot i.e. have a `/var/run/reboot-required`"
+    description = "Instances requiring a reboot, see /var/log/pay-reboots-required.log on instances"
     scored = False
     filters = [{'Name':'tag:reboots_required', 'Values':['true']}]
     reservations = EC2_CLIENT.describe_instances(Filters=filters).get('Reservations', [])
