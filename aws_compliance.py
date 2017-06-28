@@ -9,6 +9,7 @@ from datetime import datetime
 import boto3
 
 IAM_CLIENT = boto3.client('iam')
+EC2_CLIENT = boto3.client('ec2')
 S3_CLIENT  = boto3.client('s3')
 REGION     = os.getenv('AWS_DEFAULT_REGION') or 'eu-west-1'
 
@@ -88,6 +89,33 @@ def s3_logging_enabled():
             result = False
             failReason = "Buckets found without logging enabled"
             offenders.append(bucket['Name']) 
+
+    return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
+
+# Reboots required
+def reboots_required():
+    """Summary
+
+    Returns:
+        TYPE: Description
+    """
+    result = True
+    failReason = ""
+    offenders = []
+    control = "reboots_required"
+    description = "Instances requiring a reboot i.e. have a `/var/run/reboot-required`"
+    scored = False
+    filters = [{'Name':'tag:reboots_required', 'Values':['true']}]
+    reservations = EC2_CLIENT.describe_instances(Filters=filters).get('Reservations', [])
+    if reservations:
+        result = False
+        failReason = 'Instances found requiring reboots'
+        for instance in reservations:
+            instance_name = instance['Instances'][0]['InstanceId']
+            for tags in instance['Instances'][0]['Tags']:
+                if tags["Key"] == 'Name':
+                    instance_name = tags["Value"]
+            offenders.append(instance_name)
 
     return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
@@ -339,6 +367,7 @@ def lambda_handler(event, context):
     controls.append(s3_versioning_enabled())
     controls.append(s3_logging_enabled())
     controls.append(vuls_reports())
+    controls.append(reboots_required())
 
     if ONLY_SHOW_FAILED == 'true':
         controls = list(filter(lambda x: x['Result'] == False, controls))
