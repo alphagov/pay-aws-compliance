@@ -175,6 +175,33 @@ def root_account_use(credreport):
     return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
 
+# Ensure multi-factor authentication (MFA) is enabled for all IAM users that have a console password
+def mfa_on_password_enabled_iam(credreport):
+    """Summary
+
+    Args:
+        credreport (TYPE): Description
+
+    Returns:
+        TYPE: Description
+    """
+    result = True
+    failReason = ""
+    offenders = []
+    control = "mfa_on_password_enabled_iam"
+    description = "Ensure multi-factor authentication (MFA) is enabled for all IAM users that have a console password"
+    scored = False
+    for i in range(len(credreport)):
+        # Verify if the user have a password configured
+        if credreport[i]['password_enabled'] == "true":
+            # Verify if password users have MFA assigned
+            if credreport[i]['mfa_active'] == "false":
+                result = False
+                failReason = "No MFA on users with password. "
+                offenders.append(str(credreport[i]['arn']))
+    return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
+
+
 # Ensure credentials unused for 90 days or greater are disabled
 def unused_credentials(credreport):
     """Summary
@@ -506,6 +533,7 @@ def lambda_handler(event, context):
     controls.append(vuls_reports())
     controls.append(reboots_required())
     controls.append(root_account_use(cred_report))
+    controls.append(mfa_on_password_enabled_iam(cred_report))
     controls.append(unused_credentials(cred_report))
 
     if ONLY_SHOW_FAILED == 'true':
