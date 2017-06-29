@@ -120,6 +120,61 @@ def reboots_required():
 
     return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
+def root_account_use(credreport):
+    """Summary
+
+    Args:
+        credreport (TYPE): Description
+
+    Returns:
+        TYPE: Description
+    """
+    result = True
+    failReason = ""
+    offenders = []
+    control = "root_account_use"
+    description = "Root account has been logged into - avoid the use of the root account"
+    scored = False
+    if "Fail" in credreport:  # Report failure in control
+        sys.exit(credreport)
+    # Check if root is used in the last 24h
+    now = time.strftime('%Y-%m-%dT%H:%M:%S+00:00', time.gmtime(time.time()))
+    frm = "%Y-%m-%dT%H:%M:%S+00:00"
+
+    try:
+        pwdDelta = (datetime.strptime(now, frm) - datetime.strptime(credreport[0]['password_last_used'], frm))
+        if (pwdDelta.days == 0) & (pwdDelta.seconds > 0):  # Used within last 24h
+            failReason = "Used within 24h"
+            result = False
+    except:
+        if credreport[0]['password_last_used'] == "N/A" or "no_information":
+            pass
+        else:
+            print("Something went wrong")
+
+    try:
+        key1Delta = (datetime.strptime(now, frm) - datetime.strptime(credreport[0]['access_key_1_last_used_date'], frm))
+        if (key1Delta.days == 0) & (key1Delta.seconds > 0):  # Used within last 24h
+            failReason = "Used within 24h"
+            result = False
+    except:
+        if credreport[0]['access_key_1_last_used_date'] == "N/A" or "no_information":
+            pass
+        else:
+            print("Something went wrong")
+    try:
+        key2Delta = datetime.strptime(now, frm) - datetime.strptime(credreport[0]['access_key_2_last_used_date'], frm)
+        if (key2Delta.days == 0) & (key2Delta.seconds > 0):  # Used within last 24h
+            failReason = "Used within 24h"
+            result = False
+    except:
+        if credreport[0]['access_key_2_last_used_date'] == "N/A" or "no_information":
+            pass
+        else:
+            print("Something went wrong")
+    return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
+
+
 # Ensure credentials unused for 90 days or greater are disabled
 def unused_credentials(credreport):
     """Summary
@@ -450,6 +505,7 @@ def lambda_handler(event, context):
     controls.append(s3_logging_enabled())
     controls.append(vuls_reports())
     controls.append(reboots_required())
+    controls.append(root_account_use(cred_report))
     controls.append(unused_credentials(cred_report))
 
     if ONLY_SHOW_FAILED == 'true':
