@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-VERSION="0.0.4"
+VERSION="0.0.5"
 
 IFS=$'\n\t'
 
