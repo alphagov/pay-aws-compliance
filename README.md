@@ -15,6 +15,15 @@ python aws_compliance.py
 
 or as part of a scheduled Lambda function, or by AWS Config.
 
+## Controls
+
+|control_id|description|
+|:-:|---|
+|s3\_versioning\_enabled|Checks all buckets in an S3 account for bucket versioning being enabled|
+|3\_logging\_enabled|Checks all buckets in an S3 account for bucket logging being enabled|
+|vuls_reports|Scans nightly generated Vuls reports and alerts if CVE found|
+|reboots_required|pay-reboots-required runs and updates the instance `reboot_required` tag nightly. This control checks for instance tags of `reboots_required: true`|
+
 ## Environment Variables
 
 | Varible | Default | Purpose |
