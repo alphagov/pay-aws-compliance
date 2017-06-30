@@ -28,18 +28,18 @@ or as part of a scheduled Lambda function, or by AWS Config.
 
 | Varible | Default | Purpose |
 |---------|---------|---------|
-|AWS_DEFAULT_REGION | eu-west-1 | AWS Region API client connects to |
-|SEND_REPORT_TO_SNS | false | If should send report to SNS |
-|SNS_TOPIC_ARN | None | SNS topic ARN to send report to |
-|ONLY_SHOW_FAILED | false | Only show failed compliance checks |
-|S3_BUCKETS_TO_SKIP | None | CSV of S3 buckets to skip compliance checks |
-|VULS_REPORT_BUCKET | pay-govuk-dev-vuls | S3 bucket to find Vuls reports |
-|VULS_HIGH_THRESHOLD | 7 | Vuls High score threshold |
-|VULS_MEDIUM_THRESHOLD | 4.5 | Vuls Medium score threshold |
-|VULS_LOW_THRESHOLD | 0 | Vuls Low score threshold |
-|VULS_UNKNOWN_THRESHOLD | -1 | Vuls Unknown score threshold |
-|VULS_IGNORE_UNSCORED_CVE | True | Vuls report should ignore unscored CVEs? |
-|VULS_MIN_ALERT_SEVERITY | 'medium' | Vuls only reports on this severity or higher
+|AWS\_DEFAULT\_REGION | eu-west-1 | AWS Region API client connects to |
+|SEND\_REPORT\_TO_SNS | false | If should send report to SNS |
+|SNS\_TOPIC\_ARN | None | SNS topic ARN to send report to |
+|ONLY\_SHOW\_FAILED | false | Only show failed compliance checks |
+|S3\_BUCKETS\_TO_SKIP | None | CSV of S3 buckets to skip compliance checks |
+|VULS\_REPORT\_BUCKET | pay-govuk-dev-vuls | S3 bucket to find Vuls reports |
+|VULS\_HIGH\_THRESHOLD | 7 | Vuls High score threshold |
+|VULS\_MEDIUM\_THRESHOLD | 4.5 | Vuls Medium score threshold |
+|VULS\_LOW\_THRESHOLD | 0 | Vuls Low score threshold |
+|VULS\_UNKNOWN\_THRESHOLD | -1 | Vuls Unknown score threshold |
+|VULS\_IGNORE\_UNSCORED_CVE | True | Vuls report should ignore unscored CVEs? |
+|VULS\_MIN\_ALERT_SEVERITY | 'medium' | Vuls only reports on this severity or higher
 
 ## Interpreting the compliance report
 
