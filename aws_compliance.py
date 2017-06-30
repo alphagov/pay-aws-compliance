@@ -1,5 +1,6 @@
 from __future__ import print_function
 import json
+import csv
 import time
 import sys
 import re
@@ -117,6 +118,143 @@ def reboots_required():
                     instance_name = tags["Value"]
             offenders.append(instance_name)
 
+    return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
+
+def root_account_use(credreport):
+    """Summary
+
+    Args:
+        credreport (TYPE): Description
+
+    Returns:
+        TYPE: Description
+    """
+    result = True
+    failReason = ""
+    offenders = []
+    control = "root_account_use"
+    description = "Root account has been logged into - avoid the use of the root account"
+    scored = False
+    if "Fail" in credreport:  # Report failure in control
+        sys.exit(credreport)
+    # Check if root is used in the last 24h
+    now = time.strftime('%Y-%m-%dT%H:%M:%S+00:00', time.gmtime(time.time()))
+    frm = "%Y-%m-%dT%H:%M:%S+00:00"
+
+    try:
+        pwdDelta = (datetime.strptime(now, frm) - datetime.strptime(credreport[0]['password_last_used'], frm))
+        if (pwdDelta.days == 0) & (pwdDelta.seconds > 0):  # Used within last 24h
+            failReason = "Used within 24h"
+            result = False
+    except:
+        if credreport[0]['password_last_used'] == "N/A" or "no_information":
+            pass
+        else:
+            print("Something went wrong")
+
+    try:
+        key1Delta = (datetime.strptime(now, frm) - datetime.strptime(credreport[0]['access_key_1_last_used_date'], frm))
+        if (key1Delta.days == 0) & (key1Delta.seconds > 0):  # Used within last 24h
+            failReason = "Used within 24h"
+            result = False
+    except:
+        if credreport[0]['access_key_1_last_used_date'] == "N/A" or "no_information":
+            pass
+        else:
+            print("Something went wrong")
+    try:
+        key2Delta = datetime.strptime(now, frm) - datetime.strptime(credreport[0]['access_key_2_last_used_date'], frm)
+        if (key2Delta.days == 0) & (key2Delta.seconds > 0):  # Used within last 24h
+            failReason = "Used within 24h"
+            result = False
+    except:
+        if credreport[0]['access_key_2_last_used_date'] == "N/A" or "no_information":
+            pass
+        else:
+            print("Something went wrong")
+    return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
+
+
+# Ensure multi-factor authentication (MFA) is enabled for all IAM users that have a console password
+def mfa_on_password_enabled_iam(credreport):
+    """Summary
+
+    Args:
+        credreport (TYPE): Description
+
+    Returns:
+        TYPE: Description
+    """
+    result = True
+    failReason = ""
+    offenders = []
+    control = "mfa_on_password_enabled_iam"
+    description = "Ensure multi-factor authentication (MFA) is enabled for all IAM users that have a console password"
+    scored = False
+    for i in range(len(credreport)):
+        # Verify if the user have a password configured
+        if credreport[i]['password_enabled'] == "true":
+            # Verify if password users have MFA assigned
+            if credreport[i]['mfa_active'] == "false":
+                result = False
+                failReason = "No MFA on users with password. "
+                offenders.append(str(credreport[i]['arn']))
+    return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
+
+
+# Ensure credentials unused for 90 days or greater are disabled
+def unused_credentials(credreport):
+    """Summary
+
+    Args:
+        credreport (TYPE): Description
+
+    Returns:
+        TYPE: Description
+    """
+    result = True
+    failReason = ""
+    offenders = []
+    control = "unused_credentials"
+    description = "Ensure credentials unused for 90 days or greater are disabled"
+    scored = False
+    # Get current time
+    now = time.strftime('%Y-%m-%dT%H:%M:%S+00:00', time.gmtime(time.time()))
+    frm = "%Y-%m-%dT%H:%M:%S+00:00"
+
+    # Look for unused credentails
+    for i in range(len(credreport)):
+        if credreport[i]['password_enabled'] == "true":
+            try:
+                delta = datetime.strptime(now, frm) - datetime.strptime(credreport[i]['password_last_used'], frm)
+                # Verify password have been used in the last 90 days
+                if delta.days > 90:
+                    result = False
+                    failReason = "Credentials unused > 90 days detected. "
+                    offenders.append(str(credreport[i]['arn']) + ":password")
+            except:
+                pass  # Never used
+        if credreport[i]['access_key_1_active'] == "true":
+            try:
+                delta = datetime.strptime(now, frm) - datetime.strptime(credreport[i]['access_key_1_last_used_date'], frm)
+                # Verify password have been used in the last 90 days
+                if delta.days > 90:
+                    result = False
+                    failReason = "Credentials unused > 90 days detected. "
+                    offenders.append(str(credreport[i]['arn']) + ":key1")
+            except:
+                pass
+        if credreport[i]['access_key_2_active'] == "true":
+            try:
+                delta = datetime.strptime(now, frm) - datetime.strptime(credreport[i]['access_key_2_last_used_date'], frm)
+                # Verify password have been used in the last 90 days
+                if delta.days > 90:
+                    result = False
+                    failReason = "Credentials unused > 90 days detected. "
+                    offenders.append(str(credreport[i]['arn']) + ":key2")
+            except:
+                # Never used
+                pass
     return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
 
@@ -246,6 +384,31 @@ def get_account_alias():
     return account_alias
 
 
+def get_cred_report():
+    """Summary
+
+    Returns:
+        TYPE: Description
+    """
+    x = 0
+    status = ""
+    while IAM_CLIENT.generate_credential_report()['State'] != "COMPLETE":
+        time.sleep(2)
+        x += 1
+        # If no credentail report is delivered within this time fail the check.
+        if x > 10:
+            status = "Fail: rootUse - no CredentialReport available."
+            break
+    if "Fail" in status:
+        return status
+    response = IAM_CLIENT.get_credential_report()
+    report = []
+    reader = csv.DictReader(response['Content'].splitlines(), delimiter=',')
+    for row in reader:
+        report.append(row)
+    return report
+
+
 def set_evaluation(invokeEvent, mainEvent, annotation):
     """Summary
 
@@ -362,12 +525,16 @@ def lambda_handler(event, context):
         configRule = False
 
     account_alias = get_account_alias()
+    cred_report = get_cred_report()
 
     controls = []
     controls.append(s3_versioning_enabled())
     controls.append(s3_logging_enabled())
     controls.append(vuls_reports())
     controls.append(reboots_required())
+    controls.append(root_account_use(cred_report))
+    controls.append(mfa_on_password_enabled_iam(cred_report))
+    controls.append(unused_credentials(cred_report))
 
     if ONLY_SHOW_FAILED == 'true':
         controls = list(filter(lambda x: x['Result'] == False, controls))
