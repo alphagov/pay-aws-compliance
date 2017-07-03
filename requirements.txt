@@ -1,2 +1,6 @@
 boto3==1.4.4
 awscli
+credstash
+paramiko
+parallel-ssh
+ipython==5.4

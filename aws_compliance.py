@@ -1,13 +1,20 @@
 from __future__ import print_function
-import json
-import csv
-import time
-import sys
-import re
-import getopt
-import os
+from pssh.pssh_client import ParallelSSHClient
+from pssh.utils import load_private_key
+from IPython import embed
 from datetime import datetime
+from itertools import groupby
+
 import boto3
+import credstash
+import csv
+import getopt
+import json
+import os
+import paramiko
+import re
+import sys
+import time
 
 IAM_CLIENT = boto3.client('iam')
 EC2_CLIENT = boto3.client('ec2')
@@ -256,6 +263,74 @@ def unused_credentials(credreport):
                 # Never used
                 pass
     return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
+
+
+# Checks unused unix accounts on instances in AWS account
+def unused_unix_accounts():
+    """Summary
+
+    Returns:
+        TYPE: Description
+    """
+    result = True
+    failReason = ""
+    offenders = []
+    control = "unused_unix_accounts"
+    description = "Ensure users have logged into Unix accounts in the last 90 days"
+    scored = False
+   
+    instance_filters = [{'Name':'instance-state-name','Values':['running']}]
+    instDict=EC2_CLIENT.describe_instances(Filters=instance_filters)
+
+    hostList=[]
+    hosts_by_environment = {}
+    for r in instDict['Reservations']:
+        for inst in r['Instances']:
+            for tag in inst['Tags']:
+                if tag['Key'] == 'Environment':
+                    environment = tag['Value']
+                    break
+            hostList.append({'ip': inst['PrivateIpAddress'], 'environment': environment})
+
+    for environment, hosts in groupby(hostList, key=lambda hosts: hosts['environment']):
+        hosts_by_environment.setdefault(environment, [])
+	for host in hosts:
+	    hosts_by_environment[environment].append(host['ip'])
+
+    for environment in hosts_by_environment:
+        output = ssh_to_hosts(hosts_by_environment[environment],environment,'uptime')
+        for host in output:
+            for line in output[host]['stdout']:
+                print(line)
+
+    return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
+
+
+def ssh_to_hosts(hosts,environment,command):
+    embed()
+    pkey = load_private_key(ssh_key_for_environment(environment))
+    try:
+        client = ParallelSSHClient(hosts, pkey=pkey, proxy_host=bastion_dns(environment), user='ubuntu')
+        output = client.run_command(command)
+    return output or {}
+
+
+def bastion_dns(environment):
+    account = environment.split('-')[0]
+    prefix = 'admin-' + environment + '.' + account + '.'
+    if account in ('production', 'staging'):
+        return prefix + 'payments.service.gov.uk'
+    else:
+        return prefix + 'pymnt.uk'
+
+
+def ssh_key_for_environment(environment):
+    account = environment.split('-')[0]
+    credstash_key = account + '.' + environment + '.' + 'ssh_key'
+    path_to_key = '/tmp/' + credstash_key
+    with open(path_to_key, 'w') as f:
+        f.write(credstash.getSecret(credstash_key))
+    return path_to_key
 
 
 def should_skip_bucket(bucket):
@@ -535,6 +610,7 @@ def lambda_handler(event, context):
     controls.append(root_account_use(cred_report))
     controls.append(mfa_on_password_enabled_iam(cred_report))
     controls.append(unused_credentials(cred_report))
+    controls.append(unused_unix_accounts())
 
     if ONLY_SHOW_FAILED == 'true':
         controls = list(filter(lambda x: x['Result'] == False, controls))
