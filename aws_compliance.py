@@ -15,17 +15,18 @@ S3_CLIENT  = boto3.client('s3')
 REGION     = os.getenv('AWS_DEFAULT_REGION') or 'eu-west-1'
 
 # Config
-SEND_REPORT_TO_SNS       = os.getenv('SEND_REPORT_TO_SNS')
-SNS_TOPIC_ARN            = os.getenv('SNS_TOPIC_ARN')
-ONLY_SHOW_FAILED         = os.getenv('ONLY_SHOW_FAILED')
-S3_BUCKETS_TO_SKIP       = os.getenv('S3_BUCKETS_TO_SKIP')
-VULS_REPORT_BUCKET       = os.getenv('VULS_REPORT_BUCKET') or 'pay-govuk-dev-vuls'
-VULS_HIGH_THRESHOLD      = os.getenv('VULS_HIGH_THRESHOLD') or 7
-VULS_MEDIUM_THRESHOLD    = os.getenv('VULS_MEDIUM_THRESHOLD') or 4.5
-VULS_LOW_THRESHOLD       = os.getenv('VULS_LOW_THRESHOLD') or 0
-VULS_UNKNOWN_THRESHOLD   = os.getenv('VULS_UNKNOWN_THRESHOLD') or -1
-VULS_IGNORE_UNSCORED_CVE = os.getenv('VULS_IGNORE_UNSCORED_CVE') or True
-VULS_MIN_ALERT_SEVERITY  = os.getenv('VULS_MIN_ALERT_SEVERITY') or 'medium'
+SEND_REPORT_TO_SNS         = os.getenv('SEND_REPORT_TO_SNS')
+SNS_TOPIC_ARN              = os.getenv('SNS_TOPIC_ARN')
+ONLY_SHOW_FAILED           = os.getenv('ONLY_SHOW_FAILED')
+S3_BUCKETS_TO_SKIP         = os.getenv('S3_BUCKETS_TO_SKIP')
+VULS_REPORT_BUCKET         = os.getenv('VULS_REPORT_BUCKET') or 'pay-govuk-dev-vuls'
+VULS_HIGH_THRESHOLD        = os.getenv('VULS_HIGH_THRESHOLD') or 7
+VULS_MEDIUM_THRESHOLD      = os.getenv('VULS_MEDIUM_THRESHOLD') or 4.5
+VULS_LOW_THRESHOLD         = os.getenv('VULS_LOW_THRESHOLD') or 0
+VULS_UNKNOWN_THRESHOLD     = os.getenv('VULS_UNKNOWN_THRESHOLD') or -1
+VULS_IGNORE_UNSCORED_CVE   = os.getenv('VULS_IGNORE_UNSCORED_CVE') or True
+VULS_MIN_ALERT_SEVERITY    = os.getenv('VULS_MIN_ALERT_SEVERITY') or 'medium'
+UNIX_ACCOUNT_REPORT_BUCKET = os.getenv('UNIX_ACCOUNT_REPORT_BUCKET') or 'pay-govuk-unix-accounts-dev'
 
 # S3 versioning enabled on all buckets
 def s3_versioning_enabled():
@@ -262,6 +263,67 @@ def should_skip_bucket(bucket):
     if S3_BUCKETS_TO_SKIP:
         if bucket['Name'] in S3_BUCKETS_TO_SKIP.split(','):
             return True
+
+
+# Unix account last login reports
+def unix_account_last_login_reports():
+    """Summary
+
+    Returns:
+        TYPE: Description
+    """
+    result = True
+    failReason = ""
+    offenders = []
+    control = "unix_account_last_login_reports"
+    description = "Unix account last login older than 90 days"
+    scored = False
+    unused_unix_accounts_by_instance = {}
+    today = time.strftime('%Y-%m-%d', time.gmtime(time.time()))
+    response = S3_CLIENT.list_objects(Bucket=UNIX_ACCOUNT_REPORT_BUCKET,Prefix=today)
+    if 'Contents' in response:
+        for object in response['Contents']:
+            report = S3_CLIENT.get_object(Bucket=UNIX_ACCOUNT_REPORT_BUCKET,Key=object['Key'])
+            unused_accounts_json = json.loads(report['Body'].read())
+            instance = object['Key'].split('__')[0].split('/')[2]
+            unused_unix_accounts_by_instance.setdefault(instance, [])
+            for account in unused_accounts_json:
+                if account not in unused_unix_accounts_by_instance[instance]:
+                    unused_unix_accounts_by_instance[instance].append(account)
+        # filter instances less than 90 days
+        for instance in unused_unix_accounts_by_instance.keys():
+            if instance not in instances_in_scope(unused_unix_accounts_by_instance.keys()):
+                del unused_unix_accounts_by_instance[instance]
+        if len(unused_unix_accounts_by_instance.keys()) > 0:
+            result = False
+            failReason = "Unix accounts found with last login over 90 days ago"
+    else:
+        result = False
+        failReason = "No Unix user account reports found for today in " + UNIX_ACCOUNT_REPORT_BUCKET
+    return {'Result': result, 'failReason': failReason, 'Offenders': unused_unix_accounts_by_instance, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
+
+
+def instances_in_scope(instances):
+    instances_in_scope = []
+    filters = [
+      {'Name':'tag:Name', 'Values':instances},
+      {'Name':'instance-state-name','Values':['running']}
+    ]
+    reservations = EC2_CLIENT.describe_instances(Filters=filters).get('Reservations', [])
+    for reservation in reservations:
+        for instance in reservation['Instances']:
+            if launch_time_delta(instance['LaunchTime']) > 90:
+                for tags in instance['Tags']:
+                    if tags["Key"] == 'Name':
+                        instances_in_scope.append(tags["Value"])
+    return instances_in_scope
+
+
+def launch_time_delta(launch_time):
+    frm = "%Y-%m-%d %H:%M:%S+00:00"
+    now = time.strftime(frm, time.gmtime(time.time()))
+    delta = datetime.strptime(now, frm) - datetime.strptime(str(launch_time), frm)
+    return delta.days
 
 
 # Vuls reports
@@ -535,6 +597,7 @@ def lambda_handler(event, context):
     controls.append(root_account_use(cred_report))
     controls.append(mfa_on_password_enabled_iam(cred_report))
     controls.append(unused_credentials(cred_report))
+    controls.append(unix_account_last_login_reports())
 
     if ONLY_SHOW_FAILED == 'true':
         controls = list(filter(lambda x: x['Result'] == False, controls))
