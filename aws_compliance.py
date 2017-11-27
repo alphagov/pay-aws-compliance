@@ -340,6 +340,7 @@ def vuls_reports():
     description = "Vuls reports"
     scored = False
     cve_summary = dict()
+    response = dict()
     try:
         today = time.strftime('%Y-%m-%d', time.gmtime(time.time()))
         response = S3_CLIENT.list_objects(Bucket=VULS_REPORT_BUCKET,Prefix=today)
@@ -356,7 +357,8 @@ def vuls_reports():
         else:
             offenders.append(str(VULS_REPORT_BUCKET) + ":Error listing objects")
             failReason = "Error listing objects: " + str(e)
-    if response['Contents']:
+
+    if 'Contents' in response and response['Contents'] :
             for object in response['Contents']:
                   if object['Key'].split('.')[-1] == "json":
                       report = S3_CLIENT.get_object(Bucket=VULS_REPORT_BUCKET,Key=object['Key'])
@@ -610,7 +612,7 @@ def lambda_handler(event, context):
         controls = 'OK - AWS Compliance report pass'
 
     json_output(controls)
-    
+
     # Report back to Config if we detected that the script is initiated from Config Rules
     if configRule:
         evalAnnotation = shortAnnotation(controls)
