@@ -1,32 +1,90 @@
+#!/usr/bin/env python
+
 from __future__ import print_function
-import json
-import csv
-import time
-import sys
-import re
-import getopt
-import os
+import argparse
 from datetime import datetime
+import csv
+import getopt
+import json
+import os
+import re
+import sys
+import time
+
+app_description = 'Run AWS compliance reports'
+parser = argparse.ArgumentParser(description=app_description)
+
+parser.add_argument('-e', '--echo', action='store_true',
+                    help='flag; Echoes the args and then exits')
+
+parser.add_argument('--only-failed', default=False, type=bool,
+                    help='boolean; only show failed')
+
+region_help = 'str; AWS region; default env or eu-west-1'
+parser.add_argument('--region', default='', type=str,
+                    help=region_help)
+
+parser.add_argument('--skip-buckets', type=str, nargs='*', default=[],
+                    help='list of strs; buckets to skip')
+
+parser.add_argument('--send-report-to-sns', type=bool, default=False,
+                    help='bool; send the report to SNS; default false')
+
+parser.add_argument('--sns-topic-arn', type=str, default='',
+                    help='str; sns topic to send report to; default blank')
+
+unix_bucket = 'pay-govuk-unix-accounts-dev'
+unix_help_bucket_text = """
+str; bucket where unix account reports are stored; default {bucket}
+""".format(bucket=unix_bucket)
+parser.add_argument('--unix-acc-report-bucket', type=str, default=unix_bucket,
+                    help=unix_help_bucket_text)
+
+parser.add_argument('--vuls-high-threshold', type=float, default=7,
+                    help='float; vuls high threshold;    default  7')
+
+parser.add_argument('--vuls-medium-threshold', type=float, default=4.5,
+                    help='float; vuls medium threshold;  default  4.5')
+
+parser.add_argument('--vuls-low-threshold', type=float, default=0,
+                    help='float; vuls low threshold;     default  0')
+
+parser.add_argument('--vuls-ignore-unscored', type=bool, default=True,
+                    help='float; ignore unscored cves; default true')
+
+vuls_min_sev_opts   = ['unknown', 'low', 'medium', 'high']
+vuls_min_sev_help_text = """
+str; minimum alert severity; default medium; unknown / low / medium / high
+"""
+parser.add_argument('--vuls-min-alert-severity', type=str, default='medium',
+                    choices=vuls_min_sev_opts, help=vuls_min_sev_help_text)
+
+vuls_bucket = 'pay-govuk-pay-vuls'
+vuls_bucket_help_text = """
+str; bucket where vuls reports are stored; default {bucket}
+""".format(bucket=vuls_bucket)
+parser.add_argument('--vuls-report-bucket', type=str, default=vuls_bucket,
+                    help=vuls_bucket_help_text)
+
+args = parser.parse_args()
+if not args.region:
+    env_region = os.getenv('AWS_DEFAULT_REGION') or os.getenv('AWS_REGION')
+    args.region = env_region or 'eu-west-1'
+
+if args.echo:
+    for arg_name, arg_val in vars(args).items():
+        if arg_name == 'echo':
+            continue
+        print('{n} : {v}'.format(n=arg_name.rjust(24), v=str(arg_val)))
+    exit(0)
+
+# This should come after the argument parsing.
+# This is so you know your command is validated before being asked for MFA.
 import boto3
 
-IAM_CLIENT = boto3.client('iam')
 EC2_CLIENT = boto3.client('ec2')
+IAM_CLIENT = boto3.client('iam')
 S3_CLIENT  = boto3.client('s3')
-REGION     = os.getenv('AWS_DEFAULT_REGION') or 'eu-west-1'
-
-# Config
-SEND_REPORT_TO_SNS         = os.getenv('SEND_REPORT_TO_SNS')
-SNS_TOPIC_ARN              = os.getenv('SNS_TOPIC_ARN')
-ONLY_SHOW_FAILED           = os.getenv('ONLY_SHOW_FAILED')
-S3_BUCKETS_TO_SKIP         = os.getenv('S3_BUCKETS_TO_SKIP')
-VULS_REPORT_BUCKET         = os.getenv('VULS_REPORT_BUCKET') or 'pay-govuk-dev-vuls'
-VULS_HIGH_THRESHOLD        = os.getenv('VULS_HIGH_THRESHOLD') or 7
-VULS_MEDIUM_THRESHOLD      = os.getenv('VULS_MEDIUM_THRESHOLD') or 4.5
-VULS_LOW_THRESHOLD         = os.getenv('VULS_LOW_THRESHOLD') or 0
-VULS_UNKNOWN_THRESHOLD     = os.getenv('VULS_UNKNOWN_THRESHOLD') or -1
-VULS_IGNORE_UNSCORED_CVE   = os.getenv('VULS_IGNORE_UNSCORED_CVE') or True
-VULS_MIN_ALERT_SEVERITY    = os.getenv('VULS_MIN_ALERT_SEVERITY') or 'medium'
-UNIX_ACCOUNT_REPORT_BUCKET = os.getenv('UNIX_ACCOUNT_REPORT_BUCKET') or 'pay-govuk-unix-accounts-dev'
 
 # S3 versioning enabled on all buckets
 def s3_versioning_enabled():
@@ -49,7 +107,7 @@ def s3_versioning_enabled():
         except:
             result = False
             failReason = "Buckets found without versioning enabled"
-            offenders.append(bucket['Name']) 
+            offenders.append(bucket['Name'])
         try:
             versioning_status = versioning['Status']
             if (versioning_status == 'Enabled'):
@@ -57,7 +115,7 @@ def s3_versioning_enabled():
         except:
             result = False
             failReason = "Buckets found without versioning enabled"
-            offenders.append(bucket['Name']) 
+            offenders.append(bucket['Name'])
 
     return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
@@ -83,14 +141,14 @@ def s3_logging_enabled():
         except:
             result = False
             failReason = "Buckets found without logging enabled"
-            offenders.append(bucket['Name']) 
+            offenders.append(bucket['Name'])
         try:
             if logging['LoggingEnabled']:
                 pass
         except:
             result = False
             failReason = "Buckets found without logging enabled"
-            offenders.append(bucket['Name']) 
+            offenders.append(bucket['Name'])
 
     return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
@@ -260,8 +318,8 @@ def unused_credentials(credreport):
 
 
 def should_skip_bucket(bucket):
-    if S3_BUCKETS_TO_SKIP:
-        if bucket['Name'] in S3_BUCKETS_TO_SKIP.split(','):
+    if args.skip_buckets:
+        if bucket['Name'] in args.skip_buckets:
             return True
 
 
@@ -280,10 +338,10 @@ def unix_account_last_login_reports():
     scored = False
     unused_unix_accounts_by_instance = {}
     today = time.strftime('%Y-%m-%d', time.gmtime(time.time()))
-    response = S3_CLIENT.list_objects(Bucket=UNIX_ACCOUNT_REPORT_BUCKET,Prefix=today)
+    response = S3_CLIENT.list_objects(Bucket=args.unix_acc_report_bucket,Prefix=today)
     if 'Contents' in response:
         for object in response['Contents']:
-            report = S3_CLIENT.get_object(Bucket=UNIX_ACCOUNT_REPORT_BUCKET,Key=object['Key'])
+            report = S3_CLIENT.get_object(Bucket=args.unix_acc_report_bucket,Key=object['Key'])
             unused_accounts_json = json.loads(report['Body'].read())
             instance = object['Key'].split('__')[0].split('/')[2]
             unused_unix_accounts_by_instance.setdefault(instance, [])
@@ -299,7 +357,7 @@ def unix_account_last_login_reports():
             failReason = "Unix accounts found with last login over 90 days ago"
     else:
         result = False
-        failReason = "No Unix user account reports found for today in " + UNIX_ACCOUNT_REPORT_BUCKET
+        failReason = "No Unix user account reports found for today in " + args.unix_acc_report_bucket
     return {'Result': result, 'failReason': failReason, 'Offenders': unused_unix_accounts_by_instance, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
 
@@ -342,24 +400,24 @@ def vuls_reports():
     cve_summary = dict()
     try:
         today = time.strftime('%Y-%m-%d', time.gmtime(time.time()))
-        response = S3_CLIENT.list_objects(Bucket=VULS_REPORT_BUCKET,Prefix=today)
+        response = S3_CLIENT.list_objects(Bucket=args.vuls_report_bucket,Prefix=today)
     except Exception as e:
         result = False
         if "AccessDenied" in str(e):
-            offenders.append(str(VULS_REPORT_BUCKET) + ":AccessDenied")
+            offenders.append(str(args.vuls_report_bucket) + ":AccessDenied")
             if "Missing" not in failReason:
-                failReason = "Missing permissions to " + VULS_REPORT_BUCKET + failReason
+                failReason = "Missing permissions to " + args.vuls_report_bucket + failReason
         elif "NoSuchBucket" in str(e):
-            offenders.append(str(VULS_REPORT_BUCKET) + ":NoBucket")
+            offenders.append(str(args.vuls_report_bucket) + ":NoBucket")
             if "exist" not in failReason:
-                failReason = "Bucket doesn't exist. " + VULS_REPORT_BUCKET + failReason
+                failReason = "Bucket doesn't exist. " + args.vuls_report_bucket + failReason
         else:
-            offenders.append(str(VULS_REPORT_BUCKET) + ":Error listing objects")
+            offenders.append(str(args.vuls_report_bucket) + ":Error listing objects")
             failReason = "Error listing objects: " + str(e)
     if response['Contents']:
             for object in response['Contents']:
                   if object['Key'].split('.')[-1] == "json":
-                      report = S3_CLIENT.get_object(Bucket=VULS_REPORT_BUCKET,Key=object['Key'])
+                      report = S3_CLIENT.get_object(Bucket=args.vuls_report_bucket,Key=object['Key'])
                       report_body = json.loads(report['Body'].read())
                       known_cves = report_body.get('KnownCves')
                       unknown_cves = report_body.get('UnknownCves')
@@ -372,7 +430,7 @@ def vuls_reports():
                       if known_cves:
                           for known_cve in known_cves:
                               gen_cve_summary(cve_summary,known_cve,report_body['ServerName'])
-                      if unknown_cves and VULS_IGNORE_UNSCORED_CVE is False:
+                      if unknown_cves and args.vuls_ignore_unscored is False:
                           for unknown_cve in unknown_cves:
                               gen_cve_summary(cve_summary,unknown_cve,report_body['ServerName'])
             final = final_cve_summary(cve_summary)
@@ -381,7 +439,7 @@ def vuls_reports():
                 failReason = final
     else:
         result = False
-        failReason = "No Vuls reports found for today in " + VULS_REPORT_BUCKET
+        failReason = "No Vuls reports found for today in " + args.vuls_report_bucket
 
     return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
@@ -398,7 +456,7 @@ def severity_to_num(severity):
 
 def final_cve_summary(cve_summary):
     for k,v in cve_summary.items():
-        if severity_to_num(v['severity']) < severity_to_num(VULS_MIN_ALERT_SEVERITY):
+        if severity_to_num(v['severity']) < severity_to_num(args.vuls_min_alert_severity):
            del cve_summary[k]
     return cve_summary
 
@@ -424,11 +482,11 @@ def cve_score(cve):
 
 
 def cve_severity(cve_score):
-    if cve_score >= VULS_HIGH_THRESHOLD:
+    if cve_score >= args.vuls_high_threshold:
         return 'high'
-    elif cve_score >= VULS_MEDIUM_THRESHOLD:
+    elif cve_score >= args.vuls_medium_threshold:
         return 'medium'
-    elif cve_score >= VULS_LOW_THRESHOLD:
+    elif cve_score >= args.vuls_low_threshold:
         return 'low'
     else:
         return 'unknown'
@@ -556,12 +614,12 @@ def send_results_to_sns(controls, account):
         TYPE: Description
     """
     # Get correct region for the TopicARN
-    region = (SNS_TOPIC_ARN.split("sns:", 1)[1]).split(":", 1)[0]
+    region = (args.sns_topic_arn.split("sns:", 1)[1]).split(":", 1)[0]
     client = boto3.client('sns', region_name=region)
     subject = "AWS Compliance Report - " + account + " - " + str(time.strftime("%c"))
     body = json.dumps(controls, sort_keys=False, indent=4, separators=(',', ': '))
     response = client.publish(
-        TopicArn=SNS_TOPIC_ARN,
+        TopicArn=args.sns_topic_arn,
         Subject=subject,
         Message=body
     )
@@ -599,10 +657,10 @@ def lambda_handler(event, context):
     controls.append(unused_credentials(cred_report))
     controls.append(unix_account_last_login_reports())
 
-    if ONLY_SHOW_FAILED == 'true':
+    if args.only_failed:
         controls = list(filter(lambda x: x['Result'] == False, controls))
 
-    if SEND_REPORT_TO_SNS == 'true':
+    if args.send_report_to_sns:
         if bool(controls):
             send_results_to_sns(controls, account_alias)
 
@@ -610,7 +668,7 @@ def lambda_handler(event, context):
         controls = 'OK - AWS Compliance report pass'
 
     json_output(controls)
-    
+
     # Report back to Config if we detected that the script is initiated from Config Rules
     if configRule:
         evalAnnotation = shortAnnotation(controls)
@@ -618,5 +676,5 @@ def lambda_handler(event, context):
 
 
 if __name__ == '__main__':
-    boto3.setup_default_session(region_name=REGION)
+    boto3.setup_default_session(region_name=args.region)
     lambda_handler("test", "test")
