@@ -11,65 +11,122 @@ import re
 import sys
 import time
 
-app_description = 'Run AWS compliance reports'
+FALSE_VALUES = ['f', 'false', 'none']
+
+app_description = """
+Run AWS compliance reports
+
+Environment variables looked at:
+
+ONLY_SHOW_FAILED
+REGION
+S3_BUCKETS_TO_SKIP
+SEND_REPORT_TO_SNS
+SNS_TOPIC_ARN
+UNIX_ACCOUNT_REPORT_BUCKET
+VULS_REPORT_BUCKET
+"""
 parser = argparse.ArgumentParser(description=app_description)
 
-parser.add_argument('-e', '--echo', action='store_true',
-                    help='flag; Echoes the args and then exits')
+parser.add_argument(
+    '-e', '--echo',
+    action='store_true',
+    help='Echoes the args and then exits'
+)
 
-parser.add_argument('--only-failed', default=False, type=bool,
-                    help='boolean; only show failed')
+parser.add_argument(
+    '--only-failed',
+    default=str(os.getenv('ONLY_SHOW_FAILED')).lower() not in FALSE_VALUES,
+    type=bool,
+    help='only show failed'
+)
 
-region_help = 'str; AWS region; default env or eu-west-1'
-parser.add_argument('--region', default='', type=str,
-                    help=region_help)
+env_region = os.getenv('REGION')
+env_region = env_region or os.getenv('AWS_REGION')
+env_region = env_region or os.getenv('AWS_DEFAULT_REGION')
+env_region = env_region or 'eu-west-1'
+parser.add_argument(
+    '--region',
+    type=str,
+    default=env_region,
+    help='AWS region; defaults to environment variable or eu-west-1'
+)
 
-parser.add_argument('--skip-buckets', type=str, nargs='*', default=[],
-                    help='list of strs; buckets to skip')
+parser.add_argument(
+    '--skip-buckets',
+    type=str,
+    nargs='*',
+    default=[
+        s
+        for s in ((os.getenv('S3_BUCKETS_TO_SKIP') or '').split(','))
+        if len(s)
+    ],
+    help='list of strs; buckets to skip'
+)
 
-parser.add_argument('--send-report-to-sns', type=bool, default=False,
-                    help='bool; send the report to SNS; default false')
+parser.add_argument(
+    '--send-report-to-sns',
+    type=bool,
+    default=str(os.getenv('SEND_REPORT_TO_SNS')).lower() not in FALSE_VALUES,
+    help='bool; send the report to SNS; default false'
+)
 
-parser.add_argument('--sns-topic-arn', type=str, default='',
-                    help='str; sns topic to send report to; default blank')
+parser.add_argument(
+    '--sns-topic-arn',
+    type=str,
+    default=os.getenv('SNS_TOPIC_ARN') or '',
+    help='sns topic to send report to; default blank'
+)
 
-unix_bucket = 'pay-govuk-unix-accounts-dev'
-unix_help_bucket_text = """
-str; bucket where unix account reports are stored; default {bucket}
-""".format(bucket=unix_bucket)
-parser.add_argument('--unix-acc-report-bucket', type=str, default=unix_bucket,
-                    help=unix_help_bucket_text)
+unix_default_bucket = 'pay-govuk-unix-accounts-dev'
+parser.add_argument(
+    '--unix-acc-report-bucket',
+    type=str,
+    default=os.getenv('UNIX_ACCOUNT_REPORT_BUCKET') or unix_default_bucket,
+    help='bucket where unix account reports are stored; default {b}'.format(
+        b=unix_default_bucket
+    )
+)
 
 parser.add_argument('--vuls-high-threshold', type=float, default=7,
-                    help='float; vuls high threshold;    default  7')
+                    help='vuls high threshold;    default  7')
 
 parser.add_argument('--vuls-medium-threshold', type=float, default=4.5,
-                    help='float; vuls medium threshold;  default  4.5')
+                    help='vuls medium threshold;  default  4.5')
 
 parser.add_argument('--vuls-low-threshold', type=float, default=0,
-                    help='float; vuls low threshold;     default  0')
+                    help='vuls low threshold;     default  0')
 
-parser.add_argument('--vuls-ignore-unscored', type=bool, default=True,
-                    help='float; ignore unscored cves; default true')
+parser.add_argument(
+    '--vuls-ignore-unscored',
+    type=bool,
+    default=str(os.getenv('VULS_IGNORE_UNSCORED_CVE') or True) == 'true',
+    help='ignore unscored cves; default true'
+)
 
 vuls_min_sev_opts   = ['unknown', 'low', 'medium', 'high']
 vuls_min_sev_help_text = """
-str; minimum alert severity; default medium; unknown / low / medium / high
+minimum alert severity; default medium; unknown / low / medium / high
 """
-parser.add_argument('--vuls-min-alert-severity', type=str, default='medium',
-                    choices=vuls_min_sev_opts, help=vuls_min_sev_help_text)
+parser.add_argument(
+    '--vuls-min-alert-severity',
+    type=str,
+    default='medium',
+    choices=vuls_min_sev_opts,
+    help=vuls_min_sev_help_text
+)
 
-vuls_bucket = 'pay-govuk-pay-vuls'
-vuls_bucket_help_text = """
-str; bucket where vuls reports are stored; default {bucket}
-""".format(bucket=vuls_bucket)
-parser.add_argument('--vuls-report-bucket', type=str, default=vuls_bucket,
-                    help=vuls_bucket_help_text)
+vuls_bucket = os.getenv('VULS_REPORT_BUCKET') or 'pay-govuk-pay-vuls'
+parser.add_argument(
+    '--vuls-report-bucket',
+    type=str,
+    default=vuls_bucket,
+    help='bucket where vuls reports are stored; default {b}'.format(
+        b='pay-govuk-pay-vuls'
+    )
+)
 
 args = parser.parse_args()
-if not args.region:
-    env_region = os.getenv('AWS_DEFAULT_REGION') or os.getenv('AWS_REGION')
-    args.region = env_region or 'eu-west-1'
 
 if args.echo:
     for arg_name, arg_val in vars(args).items():
@@ -82,9 +139,9 @@ if args.echo:
 # This is so you know your command is validated before being asked for MFA.
 import boto3
 
-EC2_CLIENT = boto3.client('ec2')
-IAM_CLIENT = boto3.client('iam')
-S3_CLIENT  = boto3.client('s3')
+EC2_CLIENT = boto3.client('ec2', region_name=args.region)
+IAM_CLIENT = boto3.client('iam', region_name=args.region)
+S3_CLIENT  = boto3.client('s3',  region_name=args.region)
 
 # S3 versioning enabled on all buckets
 def s3_versioning_enabled():
