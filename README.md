@@ -10,7 +10,9 @@ that fail compliance in some way.
 The script can be run independently with
 
 ```
-python aws_compliance.py
+./aws_compliance.py -h # Help message
+./aws_compliance.py -e # Dry-run: echo variables
+./aws_compliance.py    # Run the reports
 ```
 
 or as part of a scheduled Lambda function, or by AWS Config.
@@ -34,12 +36,7 @@ or as part of a scheduled Lambda function, or by AWS Config.
 |ONLY\_SHOW\_FAILED | false | Only show failed compliance checks |
 |S3\_BUCKETS\_TO_SKIP | None | CSV of S3 buckets to skip compliance checks |
 |VULS\_REPORT\_BUCKET | pay-govuk-dev-vuls | S3 bucket to find Vuls reports |
-|VULS\_HIGH\_THRESHOLD | 7 | Vuls High score threshold |
-|VULS\_MEDIUM\_THRESHOLD | 4.5 | Vuls Medium score threshold |
-|VULS\_LOW\_THRESHOLD | 0 | Vuls Low score threshold |
-|VULS\_UNKNOWN\_THRESHOLD | -1 | Vuls Unknown score threshold |
-|VULS\_IGNORE\_UNSCORED_CVE | True | Vuls report should ignore unscored CVEs? |
-|VULS\_MIN\_ALERT_SEVERITY | 'medium' | Vuls only reports on this severity or higher
+|UNIX\_ACCOUNT\_REPORT\_BUCKET | pay-govuk-unix-accounts-dev | S3 bucket where unix account reports are stored |
 
 ## Interpreting the compliance report
 
