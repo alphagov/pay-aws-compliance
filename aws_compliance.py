@@ -455,6 +455,7 @@ def vuls_reports():
     description = "Vuls reports"
     scored = False
     cve_summary = dict()
+    response = dict()
     try:
         today = time.strftime('%Y-%m-%d', time.gmtime(time.time()))
         response = S3_CLIENT.list_objects(Bucket=args.vuls_report_bucket,Prefix=today)
@@ -471,7 +472,7 @@ def vuls_reports():
         else:
             offenders.append(str(args.vuls_report_bucket) + ":Error listing objects")
             failReason = "Error listing objects: " + str(e)
-    if response['Contents']:
+    if 'Contents' in response:
             for object in response['Contents']:
                   if object['Key'].split('.')[-1] == "json":
                       report = S3_CLIENT.get_object(Bucket=args.vuls_report_bucket,Key=object['Key'])
