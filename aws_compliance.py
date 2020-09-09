@@ -347,7 +347,7 @@ def unused_credentials(credreport):
                 if delta.days > 90:
                     result = False
                     failReason = "Credentials unused > 90 days detected. "
-                    offenders.append(str(credreport[i]['arn']) + ":password")
+                    offenders.append(f'{str(credreport[i]["arn"])}:password')
             except:
                 pass  # Never used
         if credreport[i]['access_key_1_active'] == "true":
@@ -357,7 +357,7 @@ def unused_credentials(credreport):
                 if delta.days > 90:
                     result = False
                     failReason = "Credentials unused > 90 days detected. "
-                    offenders.append(str(credreport[i]['arn']) + ":key1")
+                    offenders.append(f'{str(credreport[i]["arn"])}:key1')
             except:
                 pass
         if credreport[i]['access_key_2_active'] == "true":
@@ -367,12 +367,55 @@ def unused_credentials(credreport):
                 if delta.days > 90:
                     result = False
                     failReason = "Credentials unused > 90 days detected. "
-                    offenders.append(str(credreport[i]['arn']) + ":key2")
+                    offenders.append(f'{str(credreport[i]["arn"])}:key2')
             except:
                 # Never used
                 pass
     return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
+def old_api_keys(credreport):
+    """Summary
+
+    Args:
+        credreport (TYPE): Description
+
+    Returns:
+        TYPE: Description
+    """
+    result = True
+    failReason = ""
+    offenders = []
+    control = "old_api_keys"
+    description = "Ensure API keys older than 90 days are rotated."
+    scored = False
+    # Get current time
+    now = time.strftime('%Y-%m-%dT%H:%M:%S+00:00', time.gmtime(time.time()))
+    format = "%Y-%m-%dT%H:%M:%S+00:00"
+
+    # Look for unused credentails
+    for i in range(len(credreport)):
+        if credreport[i]['access_key_1_active'] == "true":
+            try:
+                delta = datetime.strptime(now, format) - datetime.strptime(credreport[i]['access_key_1_last_rotated'], format)
+                # Verify password have been used in the last 90 days
+                if delta.days > 90:
+                    result = False
+                    failReason = "API key older than 90 days detected."
+                    offenders.append(f'{str(credreport[i]["arn"])}:key1')
+            except:
+                pass
+        if credreport[i]['access_key_2_active'] == "true":
+            try:
+                delta = datetime.strptime(now, format) - datetime.strptime(credreport[i]['access_key_2_last_rotated'], format)
+                # Verify password have been used in the last 90 days
+                if delta.days > 90:
+                    result = False
+                    failReason = "API key older than 90 days detected."
+                    offenders.append(f'{str(credreport[i]["arn"])}:key2')
+            except:
+                # Never used
+                pass
+    return {'Result': result, 'failReason': failReason, 'Offenders': offenders, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
 def should_skip_bucket(bucket):
     if args.skip_buckets:
@@ -389,7 +432,6 @@ def unix_account_last_login_reports():
     """
     result = True
     failReason = ""
-    offenders = []
     control = "unix_account_last_login_reports"
     description = "Unix account last login older than 90 days"
     scored = False
@@ -580,8 +622,9 @@ def get_cred_report():
     if "Fail" in status:
         return status
     response = IAM_CLIENT.get_credential_report()
+    responseString = str(response['Content'], 'utf-8').splitlines()
     report = []
-    reader = csv.DictReader(response['Content'].splitlines(), delimiter=',')
+    reader = csv.DictReader(responseString, delimiter=',')
     for row in reader:
         report.append(row)
     return report
@@ -713,6 +756,7 @@ def lambda_handler(event, context):
     controls.append(root_account_use(cred_report))
     controls.append(mfa_on_password_enabled_iam(cred_report))
     controls.append(unused_credentials(cred_report))
+    controls.append(old_api_keys(cred_report))
     controls.append(unix_account_last_login_reports())
 
     if args.only_failed:
