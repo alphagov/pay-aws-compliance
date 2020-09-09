@@ -390,13 +390,13 @@ def old_api_keys(credreport):
     scored = False
     # Get current time
     now = time.strftime('%Y-%m-%dT%H:%M:%S+00:00', time.gmtime(time.time()))
-    frm = "%Y-%m-%dT%H:%M:%S+00:00"
+    format = "%Y-%m-%dT%H:%M:%S+00:00"
 
     # Look for unused credentails
     for i in range(len(credreport)):
         if credreport[i]['access_key_1_active'] == "true":
             try:
-                delta = datetime.strptime(now, frm) - datetime.strptime(credreport[i]['access_key_1_last_rotated'], frm)
+                delta = datetime.strptime(now, format) - datetime.strptime(credreport[i]['access_key_1_last_rotated'], format)
                 # Verify password have been used in the last 90 days
                 if delta.days > 90:
                     result = False
@@ -406,12 +406,12 @@ def old_api_keys(credreport):
                 pass
         if credreport[i]['access_key_2_active'] == "true":
             try:
-                delta = datetime.strptime(now, frm) - datetime.strptime(credreport[i]['access_key_2_last_rotated'], frm)
+                delta = datetime.strptime(now, format) - datetime.strptime(credreport[i]['access_key_2_last_rotated'], format)
                 # Verify password have been used in the last 90 days
                 if delta.days > 90:
                     result = False
                     failReason = "API key older than 90 days detected."
-                    offenders.append(str(credreport[i]['arn']) + ":key2")
+                    offenders.append(f'{str(credreport[i]['arn'])}:key2')
             except:
                 # Never used
                 pass
