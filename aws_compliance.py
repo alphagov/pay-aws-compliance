@@ -7,6 +7,7 @@ import csv
 import getopt
 import json
 import os
+import pprint
 import re
 import sys
 import time
@@ -137,6 +138,7 @@ if args.echo:
 
 # This should come after the argument parsing.
 # This is so you know your command is validated before being asked for MFA.
+import botocore
 import boto3
 
 EC2_CLIENT = boto3.client('ec2', region_name=args.region)
@@ -437,26 +439,30 @@ def unix_account_last_login_reports():
     scored = False
     unused_unix_accounts_by_instance = {}
     today = time.strftime('%Y-%m-%d', time.gmtime(time.time()))
-    response = S3_CLIENT.list_objects(Bucket=args.unix_acc_report_bucket,Prefix=today)
-    if 'Contents' in response:
-        for object in response['Contents']:
-            report = S3_CLIENT.get_object(Bucket=args.unix_acc_report_bucket,Key=object['Key'])
-            unused_accounts_json = json.loads(report['Body'].read())
-            instance = object['Key'].split('__')[0].split('/')[2]
-            unused_unix_accounts_by_instance.setdefault(instance, [])
-            for account in unused_accounts_json:
-                if account not in unused_unix_accounts_by_instance[instance]:
-                    unused_unix_accounts_by_instance[instance].append(account)
-        # filter instances less than 90 days
-        for instance in unused_unix_accounts_by_instance.keys():
-            if instance not in instances_in_scope(unused_unix_accounts_by_instance.keys()):
-                del unused_unix_accounts_by_instance[instance]
-        if len(unused_unix_accounts_by_instance.keys()) > 0:
+    try:
+        response = S3_CLIENT.list_objects(Bucket=args.unix_acc_report_bucket,Prefix=today)
+        if 'Contents' in response:
+            for object in response['Contents']:
+                report = S3_CLIENT.get_object(Bucket=args.unix_acc_report_bucket,Key=object['Key'])
+                unused_accounts_json = json.loads(report['Body'].read())
+                instance = object['Key'].split('__')[0].split('/')[2]
+                unused_unix_accounts_by_instance.setdefault(instance, [])
+                for account in unused_accounts_json:
+                    if account not in unused_unix_accounts_by_instance[instance]:
+                        unused_unix_accounts_by_instance[instance].append(account)
+            # filter instances less than 90 days
+            for instance in unused_unix_accounts_by_instance.keys():
+                if instance not in instances_in_scope(unused_unix_accounts_by_instance.keys()):
+                    del unused_unix_accounts_by_instance[instance]
+            if len(unused_unix_accounts_by_instance.keys()) > 0:
+                result = False
+                failReason = "Unix accounts found with last login over 90 days ago"
+        else:
             result = False
-            failReason = "Unix accounts found with last login over 90 days ago"
-    else:
+            failReason = "No Unix user account reports found for today in " + args.unix_acc_report_bucket
+    except botocore.exceptions.ClientError as error:
         result = False
-        failReason = "No Unix user account reports found for today in " + args.unix_acc_report_bucket
+        failReason = "An error occurred whilst querying the unix user report. " + error.response['Error']['Message']
     return {'Result': result, 'failReason': failReason, 'Offenders': unused_unix_accounts_by_instance, 'ScoredControl': scored, 'Description': description, 'ControlId': control}
 
 
