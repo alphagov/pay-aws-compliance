@@ -347,7 +347,7 @@ def unused_credentials(credreport):
                 if delta.days > 90:
                     result = False
                     failReason = "Credentials unused > 90 days detected. "
-                    offenders.append(str(credreport[i]['arn']) + ":password")
+                    offenders.append(f'{str(credreport[i]["arn"])}:password')
             except:
                 pass  # Never used
         if credreport[i]['access_key_1_active'] == "true":
@@ -357,7 +357,7 @@ def unused_credentials(credreport):
                 if delta.days > 90:
                     result = False
                     failReason = "Credentials unused > 90 days detected. "
-                    offenders.append(str(credreport[i]['arn']) + ":key1")
+                    offenders.append(f'{str(credreport[i]["arn"])}:key1')
             except:
                 pass
         if credreport[i]['access_key_2_active'] == "true":
@@ -367,7 +367,7 @@ def unused_credentials(credreport):
                 if delta.days > 90:
                     result = False
                     failReason = "Credentials unused > 90 days detected. "
-                    offenders.append(str(credreport[i]['arn']) + ":key2")
+                    offenders.append(f'{str(credreport[i]["arn"])}:key2')
             except:
                 # Never used
                 pass
@@ -401,7 +401,7 @@ def old_api_keys(credreport):
                 if delta.days > 90:
                     result = False
                     failReason = "API key older than 90 days detected."
-                    offenders.append(str(credreport[i]['arn']) + ":key1")
+                    offenders.append(f'{str(credreport[i]["arn"])}:key1')
             except:
                 pass
         if credreport[i]['access_key_2_active'] == "true":
@@ -411,7 +411,7 @@ def old_api_keys(credreport):
                 if delta.days > 90:
                     result = False
                     failReason = "API key older than 90 days detected."
-                    offenders.append(f'{str(credreport[i]['arn'])}:key2')
+                    offenders.append(f'{str(credreport[i]["arn"])}:key2')
             except:
                 # Never used
                 pass
