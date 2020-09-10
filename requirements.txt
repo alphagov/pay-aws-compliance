@@ -8,7 +8,7 @@ colorama==0.4.3
 docutils==0.15.2
 isort==5.5.1
 jmespath==0.10.0
-lazy-object-proxy==1.4.3
+lazy-object-proxy==1.5.1
 mccabe==0.6.1
 pyasn1==0.4.8
 pycodestyle==2.6.0
