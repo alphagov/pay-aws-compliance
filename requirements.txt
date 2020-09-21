@@ -6,7 +6,7 @@ boto3==1.4.4
 botocore==1.17.56
 colorama==0.4.3
 docutils==0.15.2
-isort==5.5.1
+isort==5.5.3
 jmespath==0.10.0
 lazy-object-proxy==1.4.3
 mccabe==0.6.1
