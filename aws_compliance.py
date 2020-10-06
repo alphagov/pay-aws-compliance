@@ -451,10 +451,10 @@ def unix_account_last_login_reports():
                     if account not in unused_unix_accounts_by_instance[instance]:
                         unused_unix_accounts_by_instance[instance].append(account)
             # filter instances less than 90 days
-            for instance in unused_unix_accounts_by_instance.keys():
-                if instance not in instances_in_scope(unused_unix_accounts_by_instance.keys()):
+            for instance in list(unused_unix_accounts_by_instance):
+                if instance not in instances_in_scope(list(unused_unix_accounts_by_instance)):
                     del unused_unix_accounts_by_instance[instance]
-            if len(unused_unix_accounts_by_instance.keys()) > 0:
+            if len(list(unused_unix_accounts_by_instance)) > 0:
                 result = False
                 failReason = "Unix accounts found with last login over 90 days ago"
         else:
