@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-VERSION="0.0.7"
+VERSION="0.1.0"
 
 IFS=$'\n\t'
 
@@ -20,7 +20,7 @@ TARGET=s3://"${S3_BUCKET}"/"${ARTIFACT}"
 TMP_DIR=$(mktemp -d /tmp/lambda-XXXXXX)
 ZIPFILE="${TMP_DIR}"/"${ARTIFACT}"
 
-virtualenv -p /usr/bin/python2.7 venv
+virtualenv -p /usr/bin/python3 venv
 . ./venv/bin/activate
 ./venv/bin/python ./venv/bin/pip install -qUr requirements.txt
 
