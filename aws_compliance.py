@@ -4,11 +4,8 @@ from __future__ import print_function
 import argparse
 from datetime import datetime
 import csv
-import getopt
 import json
 import os
-import pprint
-import re
 import sys
 import time
 
