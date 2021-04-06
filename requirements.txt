@@ -10,4 +10,4 @@ PyYAML==5.4.1
 rsa==4.7.2
 s3transfer==0.3.4
 six==1.15.0
-urllib3==1.26.3
+urllib3==1.26.4
