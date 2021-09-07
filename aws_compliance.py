@@ -11,6 +11,10 @@ import time
 
 FALSE_VALUES = ['f', 'false', 'none']
 
+ACCOUNTS_WITHOUT_EC2_INSTANCES = [
+    'govuk-pay-deploy'
+]
+
 app_description = """
 Run AWS compliance reports
 
@@ -754,13 +758,16 @@ def lambda_handler(event, context):
     controls = []
     controls.append(s3_versioning_enabled())
     controls.append(s3_logging_enabled())
-    controls.append(vuls_reports())
-    controls.append(reboots_required())
     controls.append(root_account_use(cred_report))
     controls.append(mfa_on_password_enabled_iam(cred_report))
     controls.append(unused_credentials(cred_report))
     controls.append(old_api_keys(cred_report))
-    controls.append(unix_account_last_login_reports())
+
+    # EC2 related compliance
+    if account_alias not in ACCOUNTS_WITHOUT_EC2_INSTANCES:
+        controls.append(reboots_required())
+        controls.append(vuls_reports())
+        controls.append(unix_account_last_login_reports())
 
     if args.only_failed:
         controls = list(filter(lambda x: x['Result'] == False, controls))
