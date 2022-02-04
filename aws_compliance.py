@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
 import argparse
 from datetime import datetime
 import csv
@@ -11,7 +10,10 @@ import time
 
 FALSE_VALUES = ['f', 'false', 'none']
 
-ACCOUNTS_WITHOUT_EC2_INSTANCES = [
+ACCOUNTS_WITHOUT_EC2_APP_INSTANCES = [
+    'govuk-pay-test'
+    'govuk-pay-staging'
+    'govuk-pay-production'
     'govuk-pay-deploy'
 ]
 
@@ -764,7 +766,7 @@ def lambda_handler(event, context):
     controls.append(old_api_keys(cred_report))
 
     # EC2 related compliance
-    if account_alias not in ACCOUNTS_WITHOUT_EC2_INSTANCES:
+    if account_alias not in ACCOUNTS_WITHOUT_EC2_APP_INSTANCES:
         controls.append(reboots_required())
         controls.append(vuls_reports())
         controls.append(unix_account_last_login_reports())
