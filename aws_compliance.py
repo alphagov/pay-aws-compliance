@@ -13,7 +13,7 @@ FALSE_VALUES = ['f', 'false', 'none']
 ACCOUNTS_WITHOUT_EC2_APP_INSTANCES = [
     'govuk-pay-test',
     'govuk-pay-staging',
-    'govuk-pay-production',
+    'govuk-pay-prod',
     'govuk-pay-deploy',
 ]
 
