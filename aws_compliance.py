@@ -11,6 +11,7 @@ import time
 FALSE_VALUES = ['f', 'false', 'none']
 
 ACCOUNTS_WITHOUT_EC2_APP_INSTANCES = [
+    'govuk-pay-dev',
     'govuk-pay-ci',
     'govuk-pay-test',
     'govuk-pay-staging',
