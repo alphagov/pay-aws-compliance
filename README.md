@@ -1,3 +1,5 @@
+⚠️ As of 2023-02-23 this repository has been archived and is no longer maintained by the Pay team. 
+
 # pay-aws-compliance
 The GOV.UK Pay AWS compliance report
 
